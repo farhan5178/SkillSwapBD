@@ -2,14 +2,16 @@ import { Star, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
 interface StudentCardProps {
+  id: string;
   name: string;
   university: string;
   teachSkills: string[];
   learnSkills: string[];
   rating: number;
+  onChat?: (id: string, name: string) => void;
 }
 
-export function StudentCard({ name, university, teachSkills, learnSkills, rating }: StudentCardProps) {
+export function StudentCard({ id, name, university, teachSkills, learnSkills, rating, onChat }: StudentCardProps) {
   return (
     <div className="glass-panel p-6 flex flex-col h-full hover:-translate-y-1 transition-transform duration-300">
       <div className="flex items-start justify-between mb-4">
@@ -53,9 +55,17 @@ export function StudentCard({ name, university, teachSkills, learnSkills, rating
         </div>
       </div>
       
-      <Button className="w-full mt-auto" variant="outline">
-        View Profile
-      </Button>
+      <div className="flex gap-2 mt-auto">
+        <Button className="flex-1" variant="outline">
+          Profile
+        </Button>
+        <Button 
+          className="flex-1 bg-primary text-white" 
+          onClick={() => onChat && onChat(id, name)}
+        >
+          Chat
+        </Button>
+      </div>
     </div>
   );
 }

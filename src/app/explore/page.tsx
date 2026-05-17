@@ -1,25 +1,93 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Filter } from "lucide-react";
 import { StudentCard } from "@/components/StudentCard";
 import { Button } from "@/components/ui/Button";
-
-const mockStudents = [
-  { name: "Ayesha Siddiqua", university: "Dhaka University", teachSkills: ["React", "JavaScript"], learnSkills: ["English", "UI Design"], rating: 4.8 },
-  { name: "Tanvir Hasan", university: "BUET", teachSkills: ["Python", "Machine Learning"], learnSkills: ["Public Speaking"], rating: 4.9 },
-  { name: "Nusrat Jahan", university: "BRAC University", teachSkills: ["Graphic Design", "Figma"], learnSkills: ["Next.js", "Tailwind CSS"], rating: 4.7 },
-  { name: "Rakib Ahmed", university: "North South University", teachSkills: ["Digital Marketing"], learnSkills: ["Video Editing", "Photography"], rating: 4.5 },
-  { name: "Mehzabin", university: "Jahangirnagar University", teachSkills: ["English", "IELTS Prep"], learnSkills: ["Python", "Data Science"], rating: 4.9 },
-  { name: "Fahim Faysal", university: "IUT", teachSkills: ["C++", "Data Structures"], learnSkills: ["Arabic", "History"], rating: 4.6 },
-];
+import { db } from "@/firebase/config";
+import { collection, getDocs, addDoc, query, where, serverTimestamp } from "firebase/firestore";
+import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
 
 export default function ExplorePage() {
+  const { currentUser, userProfile } = useAuth();
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
+  const [students, setStudents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredStudents = mockStudents.filter(s => 
-    s.teachSkills.some(skill => skill.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    s.learnSkills.some(skill => skill.toLowerCase().includes(searchTerm.toLowerCase())) ||
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "users"));
+        const usersList: any[] = [];
+        
+        querySnapshot.forEach((doc) => {
+          // Don't include the current user in the explore list
+          if (currentUser && doc.id === currentUser.uid) return;
+          
+          const data = doc.data();
+          usersList.push({
+            id: doc.id,
+            name: `${data.firstName || ''} ${data.lastName || ''}`.trim() || "Student",
+            university: data.university || "University",
+            teachSkills: data.teachingSkills || [],
+            learnSkills: data.learningSkills || [],
+            rating: 5.0, // Default rating
+          });
+        });
+        
+        setStudents(usersList);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, [currentUser]);
+
+  const handleStartChat = async (targetId: string, targetName: string) => {
+    if (!currentUser) return router.push("/login");
+  
+    try {
+      const q = query(
+        collection(db, "chats"), 
+        where("participants", "array-contains", currentUser.uid)
+      );
+      const querySnapshot = await getDocs(q);
+      let existingChatId = null;
+      
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.participants.includes(targetId)) {
+          existingChatId = doc.id;
+        }
+      });
+  
+      if (existingChatId) {
+        router.push(`/chat?id=${existingChatId}`);
+      } else {
+        const chatRef = await addDoc(collection(db, "chats"), {
+          participants: [currentUser.uid, targetId],
+          participantNames: {
+            [currentUser.uid]: `${userProfile?.firstName || ''} ${userProfile?.lastName || ''}`.trim() || "Student",
+            [targetId]: targetName
+          },
+          lastMessage: "Chat started",
+          updatedAt: serverTimestamp(),
+        });
+        router.push(`/chat?id=${chatRef.id}`);
+      }
+    } catch (error) {
+      console.error("Error starting chat:", error);
+    }
+  };
+
+  const filteredStudents = students.filter(s => 
+    s.teachSkills.some((skill: string) => skill.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    s.learnSkills.some((skill: string) => skill.toLowerCase().includes(searchTerm.toLowerCase())) ||
     s.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -46,10 +114,14 @@ export default function ExplorePage() {
         </Button>
       </div>
 
-      {filteredStudents.length > 0 ? (
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        </div>
+      ) : filteredStudents.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredStudents.map((student, idx) => (
-            <StudentCard key={idx} {...student} />
+            <StudentCard key={idx} {...student} onChat={handleStartChat} />
           ))}
         </div>
       ) : (

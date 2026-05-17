@@ -1,25 +1,51 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { MessageSquare, Users, BookOpen, Clock, Settings, User } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { useAuth } from "@/context/AuthContext";
+import Link from "next/link";
 
 export default function DashboardPage() {
+  const { currentUser, userProfile, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !currentUser) {
+      router.push("/login");
+    }
+  }, [currentUser, loading, router]);
+
+  if (loading || !currentUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  const firstName = userProfile?.firstName || "Student";
+  const initial = firstName.charAt(0).toUpperCase();
+
   return (
     <div className="container mx-auto px-4 md:px-6 py-24 min-h-screen">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground">My Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Welcome back, Farhan! Here's your skill exchange overview.</p>
+          <p className="text-muted-foreground mt-1">Welcome back, {firstName}! Here's your skill exchange overview.</p>
         </div>
-        <Button variant="outline" className="gap-2">
-          <Settings className="w-4 h-4" /> Edit Profile
-        </Button>
+        <Link href="/profile/edit">
+          <Button variant="outline" className="gap-2">
+            <Settings className="w-4 h-4" /> Edit Profile
+          </Button>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         <StatCard title="Active Exchanges" value="3" icon={Users} color="bg-primary/10 text-primary" />
-        <SkillsCard title="My Teach Skills" count="4" icon={BookOpen} color="bg-accent/10 text-accent-foreground" />
+        <SkillsCard title="My Teach Skills" count={userProfile?.teachingSkills?.length || 0} icon={BookOpen} color="bg-accent/10 text-accent-foreground" />
         <StatCard title="Pending Requests" value="2" icon={Clock} color="bg-yellow-500/10 text-yellow-600" />
         <StatCard title="Unread Messages" value="5" icon={MessageSquare} color="bg-green-500/10 text-green-600" />
       </div>
@@ -84,26 +110,36 @@ export default function DashboardPage() {
               <BookOpen className="w-5 h-5 text-accent-foreground" /> My Profile
             </h2>
             <div className="flex flex-col items-center text-center mb-6">
-              <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center text-primary text-3xl font-bold mb-3">
-                F
+              <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center text-primary text-3xl font-bold mb-3 uppercase">
+                {initial}
               </div>
-              <h3 className="font-bold text-lg">Farhan</h3>
-              <p className="text-sm text-muted-foreground">Dhaka University</p>
+              <h3 className="font-bold text-lg">{userProfile?.firstName} {userProfile?.lastName}</h3>
+              <p className="text-sm text-muted-foreground capitalize">{userProfile?.university || "University Student"}</p>
             </div>
             
             <div className="space-y-4">
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Teaching</p>
                 <div className="flex flex-wrap gap-2">
-                  <span className="px-2 py-1 bg-primary/10 text-primary rounded text-xs font-medium">React</span>
-                  <span className="px-2 py-1 bg-primary/10 text-primary rounded text-xs font-medium">Next.js</span>
+                  {userProfile?.teachingSkills && userProfile.teachingSkills.length > 0 ? (
+                    userProfile.teachingSkills.map((skill, idx) => (
+                      <span key={idx} className="px-2 py-1 bg-primary/10 text-primary rounded text-xs font-medium">{skill}</span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-muted-foreground italic">None added</span>
+                  )}
                 </div>
               </div>
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Learning</p>
                 <div className="flex flex-wrap gap-2">
-                  <span className="px-2 py-1 bg-accent/10 text-accent-foreground rounded text-xs font-medium">English</span>
-                  <span className="px-2 py-1 bg-accent/10 text-accent-foreground rounded text-xs font-medium">UI/UX</span>
+                  {userProfile?.learningSkills && userProfile.learningSkills.length > 0 ? (
+                    userProfile.learningSkills.map((skill, idx) => (
+                      <span key={idx} className="px-2 py-1 bg-accent/10 text-accent-foreground rounded text-xs font-medium">{skill}</span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-muted-foreground italic">None added</span>
+                  )}
                 </div>
               </div>
             </div>

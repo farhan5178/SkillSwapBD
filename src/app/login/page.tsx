@@ -1,10 +1,35 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { BookOpen, Globe } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { auth } from "@/firebase/config";
+import { signInWithEmailAndPassword } from "firebase/auth";
 
 export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      router.push("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Failed to log in");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center py-20 px-4 md:px-6 relative overflow-hidden">
       {/* Background decoration */}
@@ -45,13 +70,22 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <form className="space-y-4">
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/50 text-red-500 text-sm p-3 rounded-lg mb-4">
+            {error}
+          </div>
+        )}
+
+        <form className="space-y-4" onSubmit={handleLogin}>
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Email</label>
             <input 
               type="email" 
               placeholder="you@university.edu.bd" 
               className="w-full px-4 py-3 rounded-xl border border-border bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
             />
           </div>
           <div className="space-y-2">
@@ -63,9 +97,14 @@ export default function LoginPage() {
               type="password" 
               placeholder="••••••••" 
               className="w-full px-4 py-3 rounded-xl border border-border bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
             />
           </div>
-          <Button type="button" className="w-full h-12 mt-2">Sign In</Button>
+          <Button type="submit" className="w-full h-12 mt-2" disabled={loading}>
+            {loading ? "Signing in..." : "Sign In"}
+          </Button>
         </form>
 
         <p className="text-center text-sm text-muted-foreground mt-8">

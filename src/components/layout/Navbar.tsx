@@ -3,10 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, BookOpen } from "lucide-react";
+import { Menu, X, BookOpen, LogOut, User } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { cn } from "@/utils/cn";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/context/AuthContext";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -19,6 +20,8 @@ export default function Navbar() {
   const pathname = usePathname();
   const [isScrolled, setIsScrolled] = React.useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const { currentUser, userProfile, logout } = useAuth();
+  const [showDropdown, setShowDropdown] = React.useState(false);
 
   React.useEffect(() => {
     const handleScroll = () => {
@@ -76,12 +79,59 @@ export default function Navbar() {
           {/* Actions */}
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <Link
-              href="/login"
-              className="hidden md:inline-flex items-center justify-center rounded-full text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring bg-foreground text-background shadow hover:bg-foreground/90 h-10 px-6 py-2"
-            >
-              Sign In
-            </Link>
+            
+            {currentUser ? (
+              <div className="relative hidden md:block">
+                <button
+                  onClick={() => setShowDropdown(!showDropdown)}
+                  className="flex items-center gap-2 h-10 pl-2 pr-4 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 transition-colors"
+                >
+                  <div className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold uppercase">
+                    {userProfile?.firstName?.charAt(0) || currentUser.email?.charAt(0) || "U"}
+                  </div>
+                  <span className="text-sm font-medium">
+                    {userProfile?.firstName || "Profile"}
+                  </span>
+                </button>
+
+                <AnimatePresence>
+                  {showDropdown && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="absolute right-0 mt-2 w-48 rounded-2xl glass-panel p-2 shadow-xl"
+                    >
+                      <Link 
+                        href="/profile"
+                        onClick={() => setShowDropdown(false)}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 rounded-xl transition-colors"
+                      >
+                        <User className="w-4 h-4" />
+                        My Profile
+                      </Link>
+                      <button
+                        onClick={() => {
+                          logout();
+                          setShowDropdown(false);
+                        }}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 rounded-xl transition-colors mt-1"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Sign Out
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                className="hidden md:inline-flex items-center justify-center rounded-full text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring bg-foreground text-background shadow hover:bg-foreground/90 h-10 px-6 py-2"
+              >
+                Sign In
+              </Link>
+            )}
 
             {/* Mobile Menu Toggle */}
             <button
@@ -122,13 +172,39 @@ export default function Navbar() {
                   </Link>
                 );
               })}
-              <Link
-                href="/login"
-                onClick={() => setMobileMenuOpen(false)}
-                className="mt-2 inline-flex items-center justify-center rounded-xl text-sm font-medium transition-colors bg-primary text-white shadow hover:bg-primary/90 h-12 px-6 py-2 w-full"
-              >
-                Sign In / Register
-              </Link>
+              
+              <div className="h-px bg-border my-2" />
+              
+              {currentUser ? (
+                <>
+                  <Link
+                    href="/profile"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="px-4 py-3 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition-colors flex items-center gap-2"
+                  >
+                    <User className="w-4 h-4" />
+                    My Profile
+                  </Link>
+                  <button
+                    onClick={() => {
+                      logout();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-500/10 transition-colors flex items-center gap-2 text-left"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Sign Out
+                  </button>
+                </>
+              ) : (
+                <Link
+                  href="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="mt-2 inline-flex items-center justify-center rounded-xl text-sm font-medium transition-colors bg-primary text-white shadow hover:bg-primary/90 h-12 px-6 py-2 w-full"
+                >
+                  Sign In / Register
+                </Link>
+              )}
             </div>
           </motion.div>
         )}
