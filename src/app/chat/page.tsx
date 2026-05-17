@@ -19,7 +19,8 @@ function ChatContent() {
   const [activeChat, setActiveChat] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [msgInput, setMsgInput] = useState("");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const prevMessagesLengthRef = useRef(0);
 
   useEffect(() => {
     if (!currentUser) {
@@ -27,10 +28,23 @@ function ChatContent() {
     }
   }, [currentUser, router]);
 
-  // Auto scroll to bottom
+  // Auto scroll to bottom strictly within the container and play sound for new messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
+
+    // Play sound if a new message arrives and it's not from us
+    if (messages.length > prevMessagesLengthRef.current && prevMessagesLengthRef.current > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg && lastMsg.senderId !== currentUser?.uid) {
+        const audio = new Audio("/sounds/notification.ogg");
+        audio.volume = 0.5;
+        audio.play().catch(e => console.log("Audio play blocked", e));
+      }
+    }
+    prevMessagesLengthRef.current = messages.length;
+  }, [messages, currentUser]);
 
   // Listen to chats
   useEffect(() => {
@@ -38,15 +52,19 @@ function ChatContent() {
     
     const q = query(
       collection(db, "chats"),
-      where("participants", "array-contains", currentUser.uid),
-      orderBy("updatedAt", "desc")
+      where("participants", "array-contains", currentUser.uid)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const chatsList = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      }));
+      })).sort((a: any, b: any) => {
+        const timeA = a.updatedAt?.toMillis() || 0;
+        const timeB = b.updatedAt?.toMillis() || 0;
+        return timeB - timeA;
+      });
+      
       setChats(chatsList);
 
       if (chatIdParam) {
@@ -96,6 +114,19 @@ function ChatContent() {
         lastMessage: text,
         updatedAt: serverTimestamp()
       });
+
+      // Send notification to the other participant
+      const otherUid = activeChat.participants.find((uid: string) => uid !== currentUser.uid);
+      if (otherUid) {
+        await addDoc(collection(db, "users", otherUid, "notifications"), {
+          title: "New Message",
+          message: text,
+          type: "message",
+          link: `/chat?id=${activeChat.id}`,
+          read: false,
+          createdAt: serverTimestamp()
+        });
+      }
     } catch (error) {
       console.error("Error sending message:", error);
     }
@@ -202,7 +233,7 @@ function ChatContent() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
                   Say hi to {getOtherParticipantName(activeChat)}!
@@ -227,7 +258,6 @@ function ChatContent() {
                   </div>
                 ))
               )}
-              <div ref={messagesEndRef} />
             </div>
 
             {/* Input */}

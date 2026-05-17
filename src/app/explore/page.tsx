@@ -78,6 +78,17 @@ export default function ExplorePage() {
           lastMessage: "Chat started",
           updatedAt: serverTimestamp(),
         });
+        
+        // Send notification to the target user
+        await addDoc(collection(db, "users", targetId, "notifications"), {
+          title: "New Chat Request",
+          message: `${userProfile?.firstName || 'Someone'} wants to chat with you!`,
+          type: "chat",
+          link: `/chat?id=${chatRef.id}`,
+          read: false,
+          createdAt: serverTimestamp()
+        });
+
         router.push(`/chat?id=${chatRef.id}`);
       }
     } catch (error) {

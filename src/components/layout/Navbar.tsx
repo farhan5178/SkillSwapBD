@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, BookOpen, LogOut, User } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { NotificationBell } from "@/components/ui/NotificationBell";
+import { MessageBell } from "@/components/ui/MessageBell";
 import { cn } from "@/utils/cn";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
@@ -77,7 +79,13 @@ export default function Navbar() {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {currentUser && (
+              <div className="flex items-center gap-1 sm:gap-2">
+                <MessageBell />
+                <NotificationBell />
+              </div>
+            )}
             <ThemeToggle />
             
             {currentUser ? (

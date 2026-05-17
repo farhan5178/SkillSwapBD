@@ -24,6 +24,24 @@ export default function MatchPage() {
       }
 
       try {
+        // 1. Fetch active chats to exclude people we are already talking to
+        const chatsQuery = query(
+          collection(db, "chats"),
+          where("participants", "array-contains", currentUser.uid)
+        );
+        const chatsSnapshot = await getDocs(chatsQuery);
+        const existingChatUserIds = new Set<string>();
+        
+        chatsSnapshot.forEach(doc => {
+          const participants = doc.data().participants || [];
+          participants.forEach((uid: string) => {
+            if (uid !== currentUser.uid) {
+              existingChatUserIds.add(uid);
+            }
+          });
+        });
+
+        // 2. Fetch all users
         const querySnapshot = await getDocs(collection(db, "users"));
         const potentialMatches: any[] = [];
         
@@ -31,23 +49,24 @@ export default function MatchPage() {
         const myLearn = userProfile.learningSkills || [];
 
         querySnapshot.forEach((doc) => {
-          if (doc.id === currentUser.uid) return;
+          // Skip self and people we already have a chat with
+          if (doc.id === currentUser.uid || existingChatUserIds.has(doc.id)) return;
           
           const data = doc.data();
           const theirTeach = data.teachingSkills || [];
           const theirLearn = data.learningSkills || [];
 
           // Calculate Match Score
-          let score = 30; // Base score
+          let score = 30; // Base score for being in the platform
           
           // I teach what they want to learn
-          const teachMatches = myTeach.filter(skill => 
+          const teachMatches = myTeach.filter((skill: string) => 
             theirLearn.some((s: string) => s.toLowerCase() === skill.toLowerCase())
           );
           
           // They teach what I want to learn
           const learnMatches = theirTeach.filter((skill: string) => 
-            myLearn.some(s => s.toLowerCase() === skill.toLowerCase())
+            myLearn.some((s: string) => s.toLowerCase() === skill.toLowerCase())
           );
 
           score += (teachMatches.length * 25);
@@ -55,7 +74,6 @@ export default function MatchPage() {
           
           if (score > 99) score = 99;
 
-          // Only include if there's some relevance, or just include everyone if no one is perfectly matched
           if (score >= 30) {
             potentialMatches.push({
               id: doc.id,
@@ -116,6 +134,17 @@ export default function MatchPage() {
           lastMessage: "Chat started",
           updatedAt: serverTimestamp(),
         });
+
+        // Send notification to the target user
+        await addDoc(collection(db, "users", targetId, "notifications"), {
+          title: "New Chat Match",
+          message: `${userProfile?.firstName || 'Someone'} matched with you and wants to chat!`,
+          type: "chat",
+          link: `/chat?id=${chatRef.id}`,
+          read: false,
+          createdAt: serverTimestamp()
+        });
+
         router.push(`/chat?id=${chatRef.id}`);
       }
     } catch (error) {

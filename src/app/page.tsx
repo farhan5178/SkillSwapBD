@@ -1,9 +1,15 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Code, Languages, Music, Palette, PenTool, Sparkles, BookOpen, Star, MessageSquare } from "lucide-react";
+import { ArrowRight, Code, Languages, Music, Palette, PenTool, Sparkles, BookOpen, Star } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
+import { useAuth } from "@/context/AuthContext";
+import { db } from "@/firebase/config";
+import { collection, getDocs, query, limit, addDoc, where, serverTimestamp } from "firebase/firestore";
+import { StudentCard } from "@/components/StudentCard";
 
 const categories = [
   { name: "Programming", icon: Code, count: "120+ Students" },
@@ -21,11 +27,90 @@ const howItWorks = [
 ];
 
 export default function Home() {
+  const { currentUser, userProfile } = useAuth();
+  const router = useRouter();
+  const [featuredStudents, setFeaturedStudents] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchFeatured = async () => {
+      try {
+        const q = query(collection(db, "users"), limit(6));
+        const querySnapshot = await getDocs(q);
+        const usersList: any[] = [];
+        
+        querySnapshot.forEach((doc) => {
+          if (currentUser && doc.id === currentUser.uid) return;
+          const data = doc.data();
+          usersList.push({
+            id: doc.id,
+            name: `${data.firstName || ''} ${data.lastName || ''}`.trim() || "Student",
+            university: data.university || "University",
+            teachSkills: data.teachingSkills || [],
+            learnSkills: data.learningSkills || [],
+            rating: 5.0,
+          });
+        });
+        
+        setFeaturedStudents(usersList.slice(0, 3)); // Show exactly 3
+      } catch (error) {
+        console.error("Error fetching featured students:", error);
+      }
+    };
+
+    fetchFeatured();
+  }, [currentUser]);
+
+  const handleStartChat = async (targetId: string, targetName: string) => {
+    if (!currentUser) return router.push("/login");
+
+    try {
+      const q = query(
+        collection(db, "chats"), 
+        where("participants", "array-contains", currentUser.uid)
+      );
+      const querySnapshot = await getDocs(q);
+      let existingChatId = null;
+      
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.participants.includes(targetId)) {
+          existingChatId = doc.id;
+        }
+      });
+
+      if (existingChatId) {
+        router.push(`/chat?id=${existingChatId}`);
+      } else {
+        const chatRef = await addDoc(collection(db, "chats"), {
+          participants: [currentUser.uid, targetId],
+          participantNames: {
+            [currentUser.uid]: `${userProfile?.firstName || ''} ${userProfile?.lastName || ''}`.trim() || "Student",
+            [targetId]: targetName
+          },
+          lastMessage: "Chat started",
+          updatedAt: serverTimestamp(),
+        });
+        
+        await addDoc(collection(db, "users", targetId, "notifications"), {
+          title: "New Chat Request",
+          message: `${userProfile?.firstName || 'Someone'} wants to chat with you!`,
+          type: "chat",
+          link: `/chat?id=${chatRef.id}`,
+          read: false,
+          createdAt: serverTimestamp()
+        });
+
+        router.push(`/chat?id=${chatRef.id}`);
+      }
+    } catch (error) {
+      console.error("Error starting chat:", error);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
-        {/* Background Gradients */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-5xl h-[500px] bg-primary/20 rounded-full blur-[120px] -z-10 opacity-50 dark:opacity-20 pointer-events-none" />
         
         <div className="container mx-auto px-4 md:px-6 text-center">
@@ -51,20 +136,66 @@ export default function Home() {
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/register">
-                <Button size="lg" className="w-full sm:w-auto rounded-full gap-2">
-                  Start Exchanging <ArrowRight className="w-4 h-4" />
-                </Button>
-              </Link>
-              <Link href="/explore">
-                <Button variant="glass" size="lg" className="w-full sm:w-auto rounded-full">
-                  Explore Skills
-                </Button>
-              </Link>
+              {currentUser ? (
+                <>
+                  <Link href="/match">
+                    <Button size="lg" className="w-full sm:w-auto rounded-full gap-2">
+                      Find Matches <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                  <Link href="/dashboard">
+                    <Button variant="glass" size="lg" className="w-full sm:w-auto rounded-full">
+                      Go to Dashboard
+                    </Button>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link href="/register">
+                    <Button size="lg" className="w-full sm:w-auto rounded-full gap-2">
+                      Start Exchanging <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                  <Link href="/explore">
+                    <Button variant="glass" size="lg" className="w-full sm:w-auto rounded-full">
+                      Explore Skills
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           </motion.div>
         </div>
       </section>
+
+      {/* Featured Students Section */}
+      {featuredStudents.length > 0 && (
+        <section className="py-20 relative">
+          <div className="container mx-auto px-4 md:px-6">
+            <div className="flex justify-between items-end mb-12">
+              <div>
+                <h2 className="text-3xl md:text-4xl font-bold mb-4">Featured Students</h2>
+                <p className="text-muted-foreground">Top students ready to exchange skills.</p>
+              </div>
+              <Link href="/explore" className="hidden md:block text-primary hover:underline font-medium">
+                View All &rarr;
+              </Link>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredStudents.map((student, idx) => (
+                <StudentCard key={idx} {...student} onChat={handleStartChat} />
+              ))}
+            </div>
+            
+            <div className="mt-8 text-center md:hidden">
+              <Link href="/explore">
+                <Button variant="outline" className="w-full">View All Students</Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Categories Section */}
       <section className="py-20 bg-muted/50 dark:bg-slate-900/50">
@@ -111,7 +242,6 @@ export default function Home() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto relative">
-            {/* Connecting line */}
             <div className="hidden md:block absolute top-12 left-1/6 right-1/6 h-[2px] bg-gradient-to-r from-primary/20 via-primary to-primary/20 -z-10" />
 
             {howItWorks.map((item, index) => (
@@ -158,7 +288,7 @@ export default function Home() {
                   "I was struggling with Data Structures, and my partner wanted to learn UI/UX design. We matched here, and within a month, both of us leveled up massively. Best platform for BD students!"
                 </p>
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-white/20" />
+                  <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center font-bold">R</div>
                   <div>
                     <h4 className="font-semibold">Rahim Uddin</h4>
                     <p className="text-sm text-primary-foreground/70">Dhaka University</p>
@@ -181,11 +311,19 @@ export default function Home() {
             <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
               Join thousands of students in the biggest skill exchange network in Bangladesh.
             </p>
-            <Link href="/register">
-              <Button size="lg" className="rounded-full h-14 px-10 text-lg">
-                Create Free Account
-              </Button>
-            </Link>
+            {currentUser ? (
+              <Link href="/dashboard">
+                <Button size="lg" className="rounded-full h-14 px-10 text-lg">
+                  Go to Dashboard
+                </Button>
+              </Link>
+            ) : (
+              <Link href="/register">
+                <Button size="lg" className="rounded-full h-14 px-10 text-lg">
+                  Create Free Account
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </section>
